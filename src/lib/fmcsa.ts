@@ -133,11 +133,11 @@ export async function verifyMcNumber(
     };
   }
 
-  const fmcsaResult = await verifyWithFmcsa(mcNumber);
+  // const fmcsaResult = await verifyWithFmcsa(mcNumber);
 
-  if (fmcsaResult) {
-    return fmcsaResult;
-  }
+  // if (fmcsaResult) {
+  //   return fmcsaResult;
+  // }
 
   return verifyWithMock(mcNumber);
 }

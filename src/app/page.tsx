@@ -35,7 +35,8 @@ export default function Home() {
           >
             <h2 className="text-lg font-semibold text-slate-900">Web Call Demo</h2>
             <p className="mt-2 text-sm text-slate-600">
-              Instructions for launching inbound carrier calls via HappyRobot.
+              Start inbound carrier voice calls in your browser via the Web Call
+              workflow trigger.
             </p>
           </Link>
         </div>
