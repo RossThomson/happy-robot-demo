@@ -61,6 +61,9 @@ export function computeCeilingRate(listRate: number): number {
 
 /**
  * Broker counter when the carrier asks above the posted list rate.
+ * Round 1 splits the gap between list and the carrier ask.
+ * Later rounds split the gap between the last broker counter and the new ask,
+ * so counters never move backward when the carrier moves toward the broker.
  * Clamped between floorRate (min pay) and ceilingRate (max pay).
  */
 export function computeBrokerCounterRate(
@@ -68,12 +71,21 @@ export function computeBrokerCounterRate(
   listRate: number,
   floorRate: number,
   ceilingRate: number,
+  lastCounterRate: number | null = null,
 ): number {
-  const midpoint = roundCurrency((offeredRate + listRate) / 2);
-  return Math.max(
+  const anchor = lastCounterRate ?? listRate;
+  const midpoint = roundCurrency((offeredRate + anchor) / 2);
+  let counter = Math.max(
     floorRate,
     Math.min(midpoint, offeredRate, ceilingRate),
   );
+
+  if (lastCounterRate !== null) {
+    counter = Math.max(lastCounterRate, counter);
+    counter = Math.min(counter, ceilingRate);
+  }
+
+  return roundCurrency(counter);
 }
 
 /**
@@ -189,6 +201,7 @@ export async function evaluateNegotiation(
     listRate,
     floorRate,
     ceilingRate,
+    lastCounterRate,
   );
 
   await db
