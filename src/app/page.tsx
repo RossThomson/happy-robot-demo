@@ -72,6 +72,7 @@ export default function Home() {
             <li>POST /api/negotiate</li>
             <li>POST /api/calls</li>
             <li>GET /api/metrics</li>
+            <li>POST /api/dashboard/reset</li>
           </ul>
         </section>
       </main>

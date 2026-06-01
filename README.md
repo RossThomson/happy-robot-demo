@@ -71,6 +71,7 @@ All endpoints except `/api/health` require header: `x-api-key: YOUR_API_KEY`
 | POST   | `/api/negotiate` | Evaluate counter-offer                                              |
 | POST   | `/api/calls`     | Record call outcome                                                 |
 | GET    | `/api/metrics`   | Dashboard metrics                                                   |
+| POST   | `/api/dashboard/reset` | Clear calls and negotiation sessions (dashboard demo reset) |
 
 ### Example: Verify MC
 
