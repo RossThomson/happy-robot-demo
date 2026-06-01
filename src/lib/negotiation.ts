@@ -23,18 +23,74 @@ export type NegotiationResult = {
   round: number;
   maxRounds: number;
   floorRate: number;
+  ceilingRate: number;
   message: string;
   transferMessage?: string;
   agreedRate?: number;
 };
 
+function getNegotiationRatio(
+  envKey: string,
+  defaultValue: number,
+): number {
+  const ratio = Number(process.env[envKey] ?? String(defaultValue));
+  return Number.isFinite(ratio) ? ratio : defaultValue;
+}
+
 function getFloorRatio(): number {
-  const ratio = Number(process.env.NEGOTIATION_FLOOR_RATIO ?? "0.85");
-  return Number.isFinite(ratio) ? ratio : 0.85;
+  return getNegotiationRatio("NEGOTIATION_FLOOR_RATIO", 0.85);
+}
+
+function getCeilingRatio(): number {
+  return getNegotiationRatio("NEGOTIATION_CEILING_RATIO", 1.1);
 }
 
 function roundCurrency(value: number): number {
   return Math.round(value * 100) / 100;
+}
+
+export function computeFloorRate(listRate: number): number {
+  return roundCurrency(listRate * getFloorRatio());
+}
+
+export function computeCeilingRate(listRate: number): number {
+  const ceiling = roundCurrency(listRate * getCeilingRatio());
+  const floor = computeFloorRate(listRate);
+  return Math.max(ceiling, floor);
+}
+
+/**
+ * Broker counter when the carrier asks above the posted list rate.
+ * Clamped between floorRate (min pay) and ceilingRate (max pay).
+ */
+export function computeBrokerCounterRate(
+  offeredRate: number,
+  listRate: number,
+  floorRate: number,
+  ceilingRate: number,
+): number {
+  const midpoint = roundCurrency((offeredRate + listRate) / 2);
+  return Math.max(
+    floorRate,
+    Math.min(midpoint, offeredRate, ceilingRate),
+  );
+}
+
+/**
+ * Carrier accepted the posted rate, beat it, or met/beat our last counter.
+ */
+export function shouldAcceptCarrierOffer(
+  offeredRate: number,
+  listRate: number,
+  lastCounterRate: number | null,
+): boolean {
+  if (offeredRate <= listRate) {
+    return true;
+  }
+  if (lastCounterRate !== null && offeredRate <= lastCounterRate) {
+    return true;
+  }
+  return false;
 }
 
 export async function evaluateNegotiation(
@@ -49,7 +105,8 @@ export async function evaluateNegotiation(
   }
 
   const listRate = Number(load.loadboardRate);
-  const floorRate = roundCurrency(listRate * getFloorRatio());
+  const floorRate = computeFloorRate(listRate);
+  const ceilingRate = computeCeilingRate(listRate);
   const maxRounds = 3;
 
   let session = await db.query.negotiationSessions.findFirst({
@@ -69,6 +126,19 @@ export async function evaluateNegotiation(
   }
 
   const round = input.round ?? session.currentRound + 1;
+  const lastCounterRate = session.lastCounterRate
+    ? Number(session.lastCounterRate)
+    : null;
+
+  const baseResult = {
+    sessionId: input.sessionId,
+    loadId: input.loadId,
+    listRate,
+    offeredRate: input.offeredRate,
+    maxRounds,
+    floorRate,
+    ceilingRate,
+  };
 
   if (round > maxRounds) {
     await db
@@ -82,19 +152,18 @@ export async function evaluateNegotiation(
       .where(eq(negotiationSessions.sessionId, input.sessionId));
 
     return {
+      ...baseResult,
       status: "declined",
-      sessionId: input.sessionId,
-      loadId: input.loadId,
-      listRate,
-      offeredRate: input.offeredRate,
       round: maxRounds,
-      maxRounds,
-      floorRate,
       message: "Best and final offer reached. Unable to agree on rate.",
     };
   }
 
-  if (input.offeredRate >= listRate) {
+  if (
+    shouldAcceptCarrierOffer(input.offeredRate, listRate, lastCounterRate)
+  ) {
+    const agreedRate = input.offeredRate;
+
     await db
       .update(negotiationSessions)
       .set({
@@ -106,70 +175,21 @@ export async function evaluateNegotiation(
       .where(eq(negotiationSessions.sessionId, input.sessionId));
 
     return {
+      ...baseResult,
       status: "accepted",
-      sessionId: input.sessionId,
-      loadId: input.loadId,
-      listRate,
-      offeredRate: input.offeredRate,
       round,
-      maxRounds,
-      floorRate,
-      agreedRate: input.offeredRate,
+      agreedRate,
       message: "Rate accepted. Proceeding with booking.",
       transferMessage: TRANSFER_MESSAGE,
     };
   }
 
-  if (input.offeredRate < floorRate) {
-    const counterRate =
-      round === maxRounds ? listRate : roundCurrency((input.offeredRate + listRate) / 2);
-
-    await db
-      .update(negotiationSessions)
-      .set({
-        currentRound: round,
-        lastOfferedRate: input.offeredRate.toFixed(2),
-        lastCounterRate: counterRate.toFixed(2),
-        updatedAt: new Date(),
-      })
-      .where(eq(negotiationSessions.sessionId, input.sessionId));
-
-    if (round === maxRounds) {
-      await db
-        .update(negotiationSessions)
-        .set({ status: "declined", updatedAt: new Date() })
-        .where(eq(negotiationSessions.sessionId, input.sessionId));
-
-      return {
-        status: "declined",
-        sessionId: input.sessionId,
-        loadId: input.loadId,
-        listRate,
-        offeredRate: input.offeredRate,
-        counterRate,
-        round,
-        maxRounds,
-        floorRate,
-        message: `Final counter offer of $${counterRate} is our best rate. Best and final offer reached.`,
-      };
-    }
-
-    return {
-      status: "countered",
-      sessionId: input.sessionId,
-      loadId: input.loadId,
-      listRate,
-      offeredRate: input.offeredRate,
-      counterRate,
-      round,
-      maxRounds,
-      floorRate,
-      message: `Offer below minimum of $${floorRate}. Counter offer: $${counterRate}.`,
-    };
-  }
-
-  const counterRate =
-    round === maxRounds ? listRate : roundCurrency((input.offeredRate + listRate) / 2);
+  const counterRate = computeBrokerCounterRate(
+    input.offeredRate,
+    listRate,
+    floorRate,
+    ceilingRate,
+  );
 
   await db
     .update(negotiationSessions)
@@ -182,30 +202,30 @@ export async function evaluateNegotiation(
     .where(eq(negotiationSessions.sessionId, input.sessionId));
 
   if (round === maxRounds) {
+    await db
+      .update(negotiationSessions)
+      .set({ status: "declined", updatedAt: new Date() })
+      .where(eq(negotiationSessions.sessionId, input.sessionId));
+
     return {
-      status: "countered",
-      sessionId: input.sessionId,
-      loadId: input.loadId,
-      listRate,
-      offeredRate: input.offeredRate,
+      ...baseResult,
+      status: "declined",
       counterRate,
       round,
-      maxRounds,
-      floorRate,
-      message: `This is our final offer at $${counterRate}. Please confirm if you accept.`,
+      message: `Final counter offer of $${counterRate} is our best rate. Best and final offer reached.`,
     };
   }
 
+  const cappedAtCeiling = counterRate >= ceilingRate;
+  const counterMessage = cappedAtCeiling
+    ? `Counter offer: $${counterRate} (maximum rate for this load).`
+    : `Counter offer: $${counterRate}.`;
+
   return {
+    ...baseResult,
     status: "countered",
-    sessionId: input.sessionId,
-    loadId: input.loadId,
-    listRate,
-    offeredRate: input.offeredRate,
     counterRate,
     round,
-    maxRounds,
-    floorRate,
-    message: `Counter offer: $${counterRate}.`,
+    message: counterMessage,
   };
 }
