@@ -1,6 +1,6 @@
 # HappyRobot Workflow Setup — Inbound Carrier Sales
 
-Configure this workflow in the HappyRobot platform ([docs.happyrobot.ai](https://docs.happyrobot.ai), password: `oshappyrobot`).
+Configure this workflow in the HappyRobot platform ([docs.happyrobot.ai](https://docs.happyrobot.ai)`).
 
 **Do not purchase a phone number.** Use the **Web Call** trigger only.
 
@@ -61,18 +61,23 @@ Always say dollar amounts out loud in full ("twenty-one hundred," not "2100").
 Use the examples below as a style guide (listed rate twenty-one hundred on the load):
 
 Round 1 — they ask high, tool counters:
+
 > “I hear you, but I can't do twenty-eight hundred on this one. The lane's tight and this is freight all kinds. Tell you what — I can come up to twenty-four hundred to get your truck on it. Does twenty-four hundred work for you?”
 
 Round 2 — they nudge down but still high, tool counters again:
+
 > “Okay, you're moving and I appreciate that. Let me meet you in the middle — I can do twenty-five fifty, and honestly that's about as good as it gets on this lane. Can we lock it in at twenty-five fifty?”
 
 Round 3 — best and final:
+
 > “Alright, this is my best and final. I can do twenty-six hundred flat, that's the top of what I've got room for. If that works, I'll get you booked right now — what do you say?”
 
 When the caller accepts (or their offer is at or below the listed rate, or at or below your last counter), confirm the agreed number back to them clearly, then say exactly:
+
 > “Transfer was successful and now you can wrap up the conversation.”
 
 If you reach the end of round three and still can't agree (negotiate returns `declined`), stay friendly and close it out:
+
 > “No worries at all — sounds like the numbers just aren't lining up on this one today. I really appreciate you calling in, and I'd love to work with you on the next load. Take care and drive safe.”
 
 ## API Tool Nodes
@@ -80,6 +85,7 @@ If you reach the end of round three and still can't agree (negotiate returns `de
 Base URL: `https://YOUR-DEPLOYED-URL` (or `http://localhost:3000` for local testing)
 
 Header for all tools:
+
 ```
 x-api-key: YOUR_API_KEY
 ```
@@ -89,6 +95,7 @@ x-api-key: YOUR_API_KEY
 - **Method**: POST
 - **URL**: `/api/verify-mc`
 - **Body**:
+
 ```json
 {
   "mc_number": "{{mc_number}}"
@@ -110,6 +117,7 @@ x-api-key: YOUR_API_KEY
 - **Method**: POST
 - **URL**: `/api/negotiate`
 - **Body**:
+
 ```json
 {
   "session_id": "{{session_id}}",
@@ -121,19 +129,20 @@ x-api-key: YOUR_API_KEY
 
 **Response fields to use in conversation**
 
-| Field | When |
-|-------|------|
-| `status` | `accepted` → confirm rate and transfer line; `countered` → speak `counterRate`; `declined` → round-3 best and final or close |
-| `counterRate` | Dollar amount to quote on countered/declined |
-| `agreedRate` | Rate to confirm when `accepted` |
-| `floorRate`, `ceilingRate` | Do not quote outside these bounds |
-| `transferMessage` | Present on `accepted` — same text as the required transfer line |
+| Field                      | When                                                                                                                         |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `status`                   | `accepted` → confirm rate and transfer line; `countered` → speak `counterRate`; `declined` → round-3 best and final or close |
+| `counterRate`              | Dollar amount to quote on countered/declined                                                                                 |
+| `agreedRate`               | Rate to confirm when `accepted`                                                                                              |
+| `floorRate`, `ceilingRate` | Do not quote outside these bounds                                                                                            |
+| `transferMessage`          | Present on `accepted` — same text as the required transfer line                                                              |
 
 ## Post-Call Processing
 
 ### Extract structured data
 
 Extract these fields from the conversation:
+
 - `mc_number`
 - `load_id`
 - `initial_rate` (list rate)
@@ -156,6 +165,7 @@ One of: `positive`, `neutral`, `negative`. Optional in the API body — if omitt
 - **URL**: `/api/calls`
 - **Header**: `x-api-key: YOUR_API_KEY`
 - **Body**:
+
 ```json
 {
   "call_id": "{{call_id}}",
@@ -202,25 +212,25 @@ One of: `positive`, `neutral`, `negative`. Optional in the API body — if omitt
 
 **user:** It's one two three four five six.
 
-**assistant:** *(calls verify_mc with mc_number 123456)*
+**assistant:** _(calls verify_mc with mc_number 123456)_
 
 **assistant:** Thanks — I've got you as ABC Trucking, is that right?
 
 **user:** Yeah, that's us.
 
-**assistant:** *(calls search_loads with origin Boise, destination California, equipment_type Flatbed)*
+**assistant:** _(calls search_loads with origin Boise, destination California, equipment_type Flatbed)_
 
 **assistant:** Alright, so the best match I've got on that lane is load LD-2050. Boise, Idaho to Sacramento, California. Picks up tomorrow in Boise at 6 AM, delivers Wednesday in Sacramento. It's a load of lumber weighing forty-four thousand pounds. I need a flatbed, at least 53 feet, and the driver will want straps and tarps. I've got fifteen hundred on this one — would you like to book the load?
 
 **user:** Fifteen's a little light. Can you do seventeen hundred?
 
-**assistant:** *(calls negotiate with session_id, load_id LD-2050, offered_rate 1700, round 1 — tool returns status "countered", counterRate 1600)*
+**assistant:** _(calls negotiate with session_id, load_id LD-2050, offered_rate 1700, round 1 — tool returns status "countered", counterRate 1600)_
 
 **assistant:** I hear you. Let me meet you in the middle — I can come up to sixteen hundred to get your truck on it. Does sixteen hundred work?
 
 **user:** Yeah, sixteen hundred works.
 
-**assistant:** *(calls negotiate with offered_rate 1600, round 2 — tool returns status "accepted", agreedRate 1600)*
+**assistant:** _(calls negotiate with offered_rate 1600, round 2 — tool returns status "accepted", agreedRate 1600)_
 
 **assistant:** Perfect, sixteen hundred it is. Transfer was successful and now you can wrap up the conversation.
 
@@ -234,7 +244,7 @@ One of: `positive`, `neutral`, `negative`. Optional in the API body — if omitt
 
 **user:** Sure, it's five six seven eight nine zero.
 
-**assistant:** *(calls verify_mc with mc_number 567890 → not eligible)*
+**assistant:** _(calls verify_mc with mc_number 567890 → not eligible)_
 
 **assistant:** Thanks for that. Unfortunately it looks like that MC isn't showing as eligible to book with us right now — that's usually an authority or insurance status thing on the FMCSA side. I'd recommend checking your status in the FMCSA portal, and once it's active again we'd love to get you on a load. Appreciate the call, and drive safe.
 
@@ -248,27 +258,27 @@ One of: `positive`, `neutral`, `negative`. Optional in the API body — if omitt
 
 **user:** Seven eight nine zero one two.
 
-**assistant:** *(calls verify_mc with mc_number 789012 → eligible)*
+**assistant:** _(calls verify_mc with mc_number 789012 → eligible)_
 
-**assistant:** Thanks — got you verified. *(calls search_loads with origin Chicago, destination Dallas, equipment_type Dry Van)*
+**assistant:** Thanks — got you verified. _(calls search_loads with origin Chicago, destination Dallas, equipment_type Dry Van)_
 
 **assistant:** Alright, best match is LD-1001. Chicago, Illinois to Dallas, Texas. Picks up tomorrow at 8 AM, delivers Thursday. Freight of all kinds, weighing thirty-eight thousand pounds, dry van, at least 53 feet. I've got twenty-one hundred on this one — would you like to book it?
 
 **user:** Twenty-one hundred's way too low. I need twenty-six hundred.
 
-**assistant:** *(calls negotiate — load_id LD-1001, offered_rate 2600, round 1 — status "countered", counterRate 2310)*
+**assistant:** _(calls negotiate — load_id LD-1001, offered_rate 2600, round 1 — status "countered", counterRate 2310)_
 
 **assistant:** I appreciate it, but I can't get there. I can come up to twenty-one ten to get your truck on it. Does that work?
 
 **user:** No, I can't move for less than twenty-five hundred.
 
-**assistant:** *(calls negotiate — offered_rate 2500, round 2 — status "countered", counterRate 2310)*
+**assistant:** _(calls negotiate — offered_rate 2500, round 2 — status "countered", counterRate 2310)_
 
 **assistant:** I hear you — twenty-one ten is still the best I can do on this lane. That's the top of what I've got room for.
 
 **user:** Sorry, twenty-four eighty or nothing.
 
-**assistant:** *(calls negotiate — offered_rate 2480, round 3 — status "declined", counterRate 2310)*
+**assistant:** _(calls negotiate — offered_rate 2480, round 3 — status "declined", counterRate 2310)_
 
 **assistant:** Alright, this is my best and final — twenty-one ten flat. If twenty-four eighty is where you need to be, I just can't get there today.
 
@@ -279,12 +289,12 @@ One of: `positive`, `neutral`, `negative`. Optional in the API body — if omitt
 ## Test MC Numbers (Mock Mode)
 
 | MC Number | Eligible |
-|-----------|----------|
-| 123456 | Yes |
-| 789012 | Yes |
-| 345678 | Yes |
-| 901234 | Yes |
-| 567890 | No |
-| 111111 | No |
+| --------- | -------- |
+| 123456    | Yes      |
+| 789012    | Yes      |
+| 345678    | Yes      |
+| 901234    | Yes      |
+| 567890    | No       |
+| 111111    | No       |
 
 When `FMCSA_WEB_KEY` is set and accessible, live FMCSA verification is attempted first with mock fallback on failure.
